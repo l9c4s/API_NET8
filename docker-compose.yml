@@ -1,0 +1,21 @@
+
+networks:
+  docker.network:
+    driver: bridge
+
+services:
+  MysqlSis:
+    image: mariadb:11.3.2
+    container_name: DB_MOBILE
+    networks:
+      - docker.network
+    environment:
+      MARIADB_USER: PortalMainBaseSis
+      MARIADB_PASSWORD: Banana1
+      MARIADB_ROOT_PASSWORD: Banana1
+      MARIADB_DATABASE: PortalMobile
+    volumes:
+      - './docker/mysql/mariadb.cnf:/etc/mysql/conf.d/custom.cnf:ro'
+      - './docker/mysql/dbdata:/var/lib/mysql'
+    ports:
+      - 5005:3306

@@ -1,0 +1,5 @@
+[mysqld]
+skip-networking=0
+skip-bind-address
+max_connections=300
+max_user_connections=280
