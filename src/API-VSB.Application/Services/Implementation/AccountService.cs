@@ -1,8 +1,10 @@
 ﻿using API.Application.Services.Interface;
 using API.Domain.Dto;
 using API.Domain.Entities;
+using API_VSB.Application.Services.Interface;
 using AutoMapper;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -13,24 +15,25 @@ namespace API.Application.Services.Implementation
 	public class AccountService : IAccountServices
 	{
 		private readonly UserManager<ApplicationUser> _userManager;
-		private readonly RoleManager<IdentityRole> _roleManager;
 		private readonly SignInManager<ApplicationUser> _signInManager;
 		private readonly IMapper _mapper;
-		private readonly IConfiguration _configuration;
+		private readonly ITokenService _tokenService;
+		private readonly RoleManager<IdentityRole> _roleManager;
 
 
 		public AccountService
 		 (
 		 UserManager<ApplicationUser> userManager,
-		 RoleManager<IdentityRole> roleManager,
 		 IMapper mapper,
 		 IConfiguration configuration,
-		  SignInManager<ApplicationUser> signInManager
+		 RoleManager<IdentityRole> roleManager,
+		 SignInManager<ApplicationUser> signInManager,
+		 ITokenService tokenService
 		 )
 		{
-			_configuration = configuration;
-			_userManager = userManager;
 			_roleManager = roleManager;
+			_userManager = userManager;
+			_tokenService = tokenService;
 			_mapper = mapper;
 			_signInManager = signInManager;
 		}
@@ -40,9 +43,35 @@ namespace API.Application.Services.Implementation
 		{
 			Result result = new();
 			ApplicationUser? user = await _userManager.FindByEmailAsync(model.Email);
+
 			if (user is not null && await _userManager.CheckPasswordAsync(user, model.Password))
 			{
-				result.Response = GetToken(user);
+				var roles = await _userManager.GetRolesAsync(user);
+				var accessToken = _tokenService.GenerateAccessToken(user, roles);
+				var refreshToken = _tokenService.GenerateRefreshToken();
+
+				// Obter os acessos do token
+				var claimsPrincipal = _tokenService.GetPrincipalFromExpiredToken(accessToken);
+				var accesses = claimsPrincipal?.Claims
+					.Where(c => c.Type == "Access")
+					.Select(c => c.Value)
+					.ToList();
+
+
+				// Salvar o Refresh Token na tabela AspNetUserTokens
+				var tokenEntry = await _userManager.GetAuthenticationTokenAsync(user, "RefreshToken", "RefreshToken");
+				if (tokenEntry != null)
+				{
+					await _userManager.RemoveAuthenticationTokenAsync(user, "RefreshToken", "RefreshToken");
+				}
+				await _userManager.SetAuthenticationTokenAsync(user, "RefreshToken", "RefreshToken", refreshToken);
+
+				result.Response = new
+				{
+					Token = accessToken,
+					Roles = roles,
+					RefreshToken = refreshToken
+				};
 				result.Code = 200;
 			}
 			else
@@ -50,6 +79,7 @@ namespace API.Application.Services.Implementation
 				result.Code = 400;
 				result.Error = "Email or Password is incorrect!";
 			}
+
 			return result;
 		}
 
@@ -63,72 +93,120 @@ namespace API.Application.Services.Implementation
 		{
 			Result result = new();
 
+
 			if (await _userManager.FindByEmailAsync(model.Email) is not null)
 			{
 				result.Code = 400;
-				result.Error = "The User is already exist";
+				result.Error = "The email is already in use.";
+				return result;
+			}
+
+			if (await _userManager.Users.AnyAsync(u => u.UserName == model.NomeCompleto))
+			{
+				result.Code = 400;
+				result.Error = "The username is already in use.";
+				return result;
+			}
+
+			// Verificar se a role fornecida existe
+			if (!await _roleManager.RoleExistsAsync(model.Role))
+			{
+				result.Code = 400;
+				result.Error = $"A role '{model.Role}' não existe.";
+				return result;
+			}
+
+
+			ApplicationUser user = _mapper.Map<ApplicationUser>(model);
+
+			IdentityResult createUserResult = await _userManager.CreateAsync(user, model.Password);
+
+			if (createUserResult.Succeeded)
+			{
+				await _userManager.AddToRoleAsync(user, model.Role);
+
+				var roles = await _userManager.GetRolesAsync(user);
+				var accessToken = _tokenService.GenerateAccessToken(user, roles);
+				var refreshToken = _tokenService.GenerateRefreshToken();
+
+				// Salvar o Refresh Token na tabela AspNetUserTokens
+				await _userManager.SetAuthenticationTokenAsync(user, "RefreshToken", "RefreshToken", refreshToken);
+
+				result.Response = new
+				{
+					Token = accessToken,
+					Roles = roles,
+					RefreshToken = refreshToken
+				};
+				result.Code = 200;
 			}
 			else
 			{
-				ApplicationUser MapUser = _mapper.Map<ApplicationUser>(model);
-				var CreateUser = await _userManager.CreateAsync(MapUser, model.Password);
-
-				if (CreateUser.Succeeded)
-				{
-					result.Response = GetToken(MapUser);
-					result.Code = 200;
-				}
-				else
-				{
-					result.Code = 400;
-
-					var errors = string.Empty;
-
-					foreach (var error in CreateUser.Errors)
-						errors += $"{error.Description},";
-					result.Error = errors;
-				}
+				result.Code = 400;
+				result.Error = string.Join(", ", createUserResult.Errors.Select(e => e.Description));
 			}
-
-
 			return result;
 		}
 
 		public async Task<Result> RemoverUsuario(string id)
 		{
 			var user = await _userManager.FindByIdAsync(id);
-		    await _userManager.DeleteAsync(user);
+			await _userManager.DeleteAsync(user);
 
 			Result result = new();
 			result.Code = 200;
-			var errors = string.Empty;
 
 			return result;
 		}
 
-
-
-		private string GetToken(ApplicationUser applicationUser)
+		public async Task<Result> EnsureRolesExist()
 		{
-			var SecretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:key"] ?? string.Empty));
-			var isuer = _configuration["JWT:Issuer"];
-			var audience = _configuration["JWT:Audience"];
-			var credenctial = new SigningCredentials(SecretKey, SecurityAlgorithms.HmacSha256);
-
-
-
-			var tokenOptions = new JwtSecurityToken(
-				issuer: isuer,
-				audience: audience,
-				claims: new[]
+			var roles = new[] { "Admin", "Gerente", "Usuario" };
+			foreach (var role in roles)
+			{
+				if (!await _roleManager.RoleExistsAsync(role))
 				{
-						new Claim(type: ClaimTypes.Name, applicationUser.UserName)
-				},
-				expires: DateTime.Now.AddHours(2),
-				signingCredentials: credenctial
-				);
-
-			return new JwtSecurityTokenHandler().WriteToken(tokenOptions);
+					var result = await _roleManager.CreateAsync(new IdentityRole(role));
+					if (!result.Succeeded)
+					{
+						return new Result
+						{
+							Code = 500,
+							Error = $"Failed to create role: {role}. Errors: {string.Join(", ", result.Errors.Select(e => e.Description))}"
+						};
+					}
+				}
+			}
+			return new Result { Code = 200, Response = "Roles created successfully." };
 		}
+
+		public async Task<Result> ConfigureRoleClaims()
+		{
+			var adminRole = await _roleManager.FindByNameAsync("Admin");
+			if (adminRole != null)
+			{
+				await _roleManager.AddClaimAsync(adminRole, new Claim("Access", "ListarUsuarios"));
+				await _roleManager.AddClaimAsync(adminRole, new Claim("Access", "ListaDeGaragem"));
+			}
+
+			var gerenteRole = await _roleManager.FindByNameAsync("Gerente");
+			if (gerenteRole != null)
+			{
+				await _roleManager.AddClaimAsync(gerenteRole, new Claim("Access", "ListaDeGaragem"));
+			}
+
+			var usuarioRole = await _roleManager.FindByNameAsync("Usuario");
+			if (usuarioRole != null)
+			{
+				await _roleManager.AddClaimAsync(usuarioRole, new Claim("Access", "ListaDeGaragem"));
+			}
+
+			return new Result { Code = 200, Response = "Claims configuradas com sucesso." };
+		}
+
+
 	}
+
+
+
 }
