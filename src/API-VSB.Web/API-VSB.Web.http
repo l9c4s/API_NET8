@@ -1,6 +1,0 @@
-@API_VSB.Web_HostAddress = http://localhost:5268
-
-GET {{API_VSB.Web_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

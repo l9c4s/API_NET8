@@ -34,8 +34,8 @@ namespace API_VSB.Application.Services.Implementation
 		{
 			var claims = new List<Claim>
 			{
-				new Claim(ClaimTypes.Name, user.UserName),
-				new Claim(ClaimTypes.NameIdentifier, user.Id)
+				new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+				new Claim(JwtRegisteredClaimNames.Jti, user.Id)
 			};
 
 			// Adicionar roles ao token

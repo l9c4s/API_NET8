@@ -6,7 +6,7 @@ using API.Infrastructure.UnitOfWork;
 using API_VSB.Application.Services.Implementation;
 using API_VSB.Application.Services.Interface;
 
-namespace API_VSB.Web.Extensions
+namespace Riders_API.Extensions
 {
 	public static class DependencyInjectionExtensions
 	{

@@ -1,9 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using System.Security.Claims;
 using System.Text;
 
-namespace API_VSB.Web.Extensions
+namespace Riders_API.Extensions
 {
 	public static class TokenConfigurationExtensions
 	{
@@ -17,16 +16,15 @@ namespace API_VSB.Web.Extensions
 			{
 				option.TokenValidationParameters = new TokenValidationParameters
 				{
-					ValidateIssuer = true,
+					ValidateLifetime = true,
+					ClockSkew = TimeSpan.Zero,
 					ValidateAudience = true,
-					ValidateIssuerSigningKey = true,
-					ValidIssuer = configuration["JWT:Issuer"],
 					ValidAudience = configuration["JWT:Audience"],
+					ValidateIssuer = true,
+					ValidIssuer = configuration["JWT:Issuer"],
+					ValidateIssuerSigningKey = true,
 					IssuerSigningKey = new SymmetricSecurityKey(
 						Encoding.UTF8.GetBytes(configuration["JWT:key"])),
-
-					NameClaimType = ClaimTypes.Name,
-					RoleClaimType = ClaimTypes.Role
 				};
 			});
 
