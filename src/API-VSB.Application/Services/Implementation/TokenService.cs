@@ -33,16 +33,21 @@ namespace API_VSB.Application.Services.Implementation
 		public string GenerateAccessToken(ApplicationUser user, IEnumerable<string> roles)
 		{
 			var claims = new List<Claim>
+				{
+			new Claim(JwtRegisteredClaimNames.Exp, DateTimeOffset.UtcNow.AddHours(2).ToUnixTimeSeconds().ToString()), // Expiração
+			new Claim(JwtRegisteredClaimNames.Iss, _configuration["JWT:Issuer"]), // Emissor
+			new Claim(JwtRegisteredClaimNames.Aud, _configuration["JWT:Audience"]), // Audiência
+			new Claim(JwtRegisteredClaimNames.Sub, user.UserName), // Identificador do usuário
+			new Claim(JwtRegisteredClaimNames.Jti, user.Id) // ID único do token
+				};
+
+
+			foreach(var role in roles)
 			{
-				new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
-				new Claim(JwtRegisteredClaimNames.Jti, user.Id)
-			};
+				claims.Add(new Claim(ClaimTypes.Role, role));
+			}
 
-			// Adicionar roles ao token
-			claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
-
-
-			// Obter as claims de acesso associadas às roles
+			// Adicionar claims de acesso associadas às roles
 			foreach (var role in roles)
 			{
 				var roleEntity = _roleManager.FindByNameAsync(role).Result;
@@ -53,13 +58,12 @@ namespace API_VSB.Application.Services.Implementation
 				}
 			}
 
+			// Gerar a chave de assinatura
 			var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:key"]));
 			var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-
+			// Criar o token JWT
 			var token = new JwtSecurityToken(
-				issuer: _configuration["JWT:Issuer"],
-				audience: _configuration["JWT:Audience"],
 				claims: claims,
 				expires: DateTime.Now.AddHours(2),
 				signingCredentials: credentials

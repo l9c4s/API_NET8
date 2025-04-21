@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
@@ -27,6 +28,7 @@ namespace Riders_API.Extensions
 						Encoding.UTF8.GetBytes(configuration["JWT:key"])),
 				};
 			});
+
 
 			return services;
 		}

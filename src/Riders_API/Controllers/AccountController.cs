@@ -1,8 +1,8 @@
 ﻿using API.Application.Services.Interface;
 using API.Domain.Dto;
+using API_VSB.Domain.Dto;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace API.Web.Controllers
 {
@@ -12,13 +12,17 @@ namespace API.Web.Controllers
 	{
 
 
-		[Authorize]
+		[Authorize(Roles = "Admin")]
 		[HttpPost("deleteauth")]
-		public async Task<IActionResult> Deletar1([FromBody] string ididel)
+		public async Task<IActionResult> Deletar([FromBody] RemoveUserModel IdUser)
 		{
-			var userRole = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
 
-			var result = await _accountServices.RemoverUsuario(ididel);
+			if (!ModelState.IsValid)
+			{
+				return BadRequest(ModelState);
+			}
+
+			var result = await _accountServices.RemoverUsuario(IdUser.IdUser.ToString());
 			return Ok(result);
 		}
 
