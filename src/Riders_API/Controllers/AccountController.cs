@@ -12,7 +12,7 @@ namespace API.Web.Controllers
 	{
 
 
-		[Authorize(Roles = "Admin")]
+		[Authorize]
 		[HttpPost("deleteauth")]
 		public async Task<IActionResult> Deletar([FromBody] RemoveUserModel IdUser)
 		{

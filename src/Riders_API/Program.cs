@@ -11,6 +11,7 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddTokenConfiguration(builder.Configuration);
+
 builder.Services.AddAuthorization(options =>
 {
 	var defaultAuthorizationPolicyBuilder = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)

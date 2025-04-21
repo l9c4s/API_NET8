@@ -47,16 +47,6 @@ namespace API_VSB.Application.Services.Implementation
 				claims.Add(new Claim(ClaimTypes.Role, role));
 			}
 
-			// Adicionar claims de acesso associadas às roles
-			foreach (var role in roles)
-			{
-				var roleEntity = _roleManager.FindByNameAsync(role).Result;
-				if (roleEntity != null)
-				{
-					var roleClaims = _roleManager.GetClaimsAsync(roleEntity).Result;
-					claims.AddRange(roleClaims.Where(c => c.Type == "Access"));
-				}
-			}
 
 			// Gerar a chave de assinatura
 			var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:key"]));

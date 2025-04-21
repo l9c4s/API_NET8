@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 using System.Text;
 
 namespace Riders_API.Extensions
@@ -11,7 +11,7 @@ namespace Riders_API.Extensions
 		{
 			services.AddAuthentication(x =>
 			{
-				x.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+				x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
 				x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 			}).AddJwtBearer(option =>
 			{
@@ -24,10 +24,11 @@ namespace Riders_API.Extensions
 					ValidateIssuer = true,
 					ValidIssuer = configuration["JWT:Issuer"],
 					ValidateIssuerSigningKey = true,
-					IssuerSigningKey = new SymmetricSecurityKey(
-						Encoding.UTF8.GetBytes(configuration["JWT:key"])),
+					IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:key"])),
 				};
 			});
+
+			
 
 
 			return services;
